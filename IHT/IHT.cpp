@@ -21,7 +21,6 @@ float** fillMatrix(int size)
 
 	for (int i = 0; i < size; i++)
 	{
-		//matrix[i] = new float[size];
 		for (int j = 0; j < size; j++)
 		{
 			matrix[i][j] = rand() / (RAND_MAX + 1.);
@@ -32,7 +31,8 @@ float** fillMatrix(int size)
 
 float* fillVector(int size)
 {
-	float* vector = new float[size];
+	float* vector = (float*)malloc(size * sizeof(float));
+
 	for (int i = 0; i < size; i++)
 	{
 		vector[i] = rand() / (RAND_MAX + 1.);
@@ -62,11 +62,9 @@ void printVector(float* v, int len)
 	}
 }
 
-void findMax(float** matrix, int size)
+void findMax(float** matrix, int size, float &max, int &row, int &column)
 {
-	float max = FLT_MIN;
-	float row = 0, column = 0;
-
+	max = matrix[0][0];
 	for (int i = 0; i < size; i++)
 	{
 		for (int j = 0; j < size; j++)
@@ -79,11 +77,17 @@ void findMax(float** matrix, int size)
 			}
 		}
 	}
-
-	cout << "max: " << max << ", row: " << row << ", column: " << column << endl;
 }
 
-float* multiplyByVector(float* a[], float b[], float* c, int n)
+void findMaxSSE(float** matrix, int size, float &max, int &row, int &column)
+{
+	__m128** matrixSSE = (__m128**)matrix;
+	__m128 maxSSE = matrixSSE[0][0];
+
+
+}
+
+void multiplyByVector(float** a, float* b, float* &c, int n)
 {
 	for (int i = 0; i < n; i++)
 	{
@@ -93,7 +97,6 @@ float* multiplyByVector(float* a[], float b[], float* c, int n)
 			c[i] += a[i][j] * b[j];
 		}
 	}
-	return c;
 }
 
 void multiply(float** a, float** b, float** &c, int n) 
@@ -128,6 +131,7 @@ bool equals(float** m1, float** m2, int size)
 		{
 			if (m1[i][j] != m2[i][j])
 			{
+				cout << m1[i][j] << "  " << m2[i][j] << endl << endl;
 				return false;
 			}
 		}
@@ -139,6 +143,8 @@ void testFindMax(int size, int times)
 {
 	cout << "find max\n";
 	double min = DBL_MAX;
+	float max;
+	int row, col;
 
 	for (int i = 0; i < times; i++)
 	{
@@ -147,7 +153,7 @@ void testFindMax(int size, int times)
 		double elapsed_secs = 0;
 
 		begin = clock();
-		findMax(matrix, size);
+		findMax(matrix, size, max, row, col);
 		end = clock();
 		elapsed_secs = double(end - begin) / CLOCKS_PER_SEC;
 
@@ -155,116 +161,197 @@ void testFindMax(int size, int times)
 		{
 			min = elapsed_secs;
 		}
+
+		free(matrix);
+	}
+	cout << "max: " << max << ", row: " << row << ", column: " << col << endl;
+	cout << "time: " << min << endl;
+}
+
+void testMultiplyByVector(int size, int times)
+{
+	cout << "\nmultiply by vector\n";
+	double min = DBL_MAX;
+
+	for (int i = 0; i < times; i++)
+	{
+		float** matrix = fillMatrix(size);
+		float* vector = fillVector(size);
+		float* resultVector = new float[size];
+		clock_t begin, end;
+		double elapsed_secs;
+
+		begin = clock();
+		multiplyByVector(matrix, vector, resultVector, size);
+		end = clock();
+		elapsed_secs = double(end - begin) / CLOCKS_PER_SEC;
+
+		if (elapsed_secs < min)
+		{
+			min = elapsed_secs;
+		}
+
+		free(matrix);
+		delete(vector);
+		delete(resultVector);
 	}
 
 	cout << "time: " << min << endl;
 }
 
-void testMultiplyByVector(int size)
+float** testMultiply(float** m1, float** m2, int size, int times)
 {
-	cout << "\nmultiply by vector\n";
+	double min = DBL_MAX;
+	float** resultMatrix = (float**)malloc(size * sizeof(float*));
 
-	float** matrix = fillMatrix(size);
-	float* vector = fillVector(size);
-	float* resultVector = new float[size];
-	clock_t begin, end;
-	double elapsed_secs;
-
-	begin = clock();
-	resultVector = multiplyByVector(matrix, vector, resultVector, size);
-	end = clock();
-	elapsed_secs = double(end - begin) / CLOCKS_PER_SEC;
-
-	cout << "time: " << elapsed_secs << endl;
-}
-
-float** testMultiply(float** m1, float** m2, int size)
-{
-	float** matrix = m1;
-	float** matrix2 = m2;
-	float** resultMatrix = new float*[size];
-	clock_t begin, end;
-	double elapsed_secs = 0;
-
-	for (int i = 0; i < size; i++)
+	for (int k = 0; k < size; k++)
 	{
-		resultMatrix[i] = new float[size];
+		resultMatrix[k] = (float*)malloc(size * sizeof(float));
 	}
 
-	begin = clock();
-	multiply(matrix, matrix2, resultMatrix, size);
-	end = clock();
-	elapsed_secs = double(end - begin) / CLOCKS_PER_SEC;
-	cout << "time: " << elapsed_secs << endl;
 
-	free(matrix);
-	free(matrix2);
+	for (int i = 0; i < times; i++)
+	{
 
+		float** matrixRes1 = fillMatrix(size);
+		float** matrixRes2 = fillMatrix(size);
+
+		clock_t begin, end;
+		double elapsed_secs = 0;
+
+		
+		begin = clock();
+		multiply(matrixRes1, matrixRes2, resultMatrix, size);
+		end = clock();
+		elapsed_secs = double(end - begin) / CLOCKS_PER_SEC;
+
+		if (elapsed_secs < min)
+		{
+			min = elapsed_secs;
+		}
+
+		free(matrixRes1);
+		free(matrixRes2);
+	}
+	multiply(m1, m2, resultMatrix, size);
+	
+	cout << "time: " << min << endl;
 	return resultMatrix;
 }
 
-float** testOptimizedMultiply(float** m1, float** m2, int size)
+float** testOptimizedMultiply(float** m1, float** m2, int size, int times)
 {
-	float** matrix = m1;
-	float** matrix2 = m2;
+	double min = DBL_MAX;
+	float** resultMatrix = (float**)malloc(size * sizeof(float*));
 
-	float** resultMatrix = new float*[size];
-	for (int i = 0; i < size; i++)
+	for (int k = 0; k < size; k++)
 	{
-		resultMatrix[i] = new float[size];
-	}
-	//float** resultMatrix = (float**)calloc(size, sizeof(float*));
-	//for (int k = 0; k < size; k++)
-	{
-		//resultMatrix[k] = (float*)calloc(size, sizeof(float));
+		resultMatrix[k] = (float*)malloc(size * sizeof(float));
 	}
 
-	clock_t begin, end;
-	double elapsed_secs = 0;
 
-	begin = clock();
-	optimizedMultiply(matrix, matrix2, resultMatrix, size);
-	end = clock();
-	elapsed_secs = double(end - begin) / CLOCKS_PER_SEC;
-	cout << "time: " << elapsed_secs << endl;
+	for (int i = 0; i < times; i++)
+	{
 
-	free(matrix);
-	free(matrix2);
+		float** matrixRes1 = fillMatrix(size);
+		float** matrixRes2 = fillMatrix(size);
+		clock_t begin, end;
+		double elapsed_secs = 0;
 
+
+		begin = clock();
+		optimizedMultiply(matrixRes1, matrixRes2, resultMatrix, size);
+		end = clock();
+		elapsed_secs = double(end - begin) / CLOCKS_PER_SEC;
+
+		if (elapsed_secs < min)
+		{
+			min = elapsed_secs;
+		}
+
+//		free(resultMatrix);
+		free(matrixRes1);
+		free(matrixRes2);
+	}
+	multiply(m1, m2, resultMatrix, size);
+
+	cout << "time: " << min << endl;
 	return resultMatrix;
+}
+
+/////////////////////
+bool isAVXAvailable()
+{
+	bool result = true;
+	__int64 xcr0 = _xgetbv(0);
+	result = (xcr0 & 7) == 7;
+	
+	if (!result)
+	{
+		return false;
+	}
+
+	int regs[4];
+	__cpuid(regs, 1);
+	result = ((regs[2] >> 26) & 7) == 7;
+	
+	if (!result)
+	{
+		return false;
+	}
+
+	result = (regs[2] & ((1 << 12) | (1 << 22))) == ((1 << 12) | (1 << 22));
+	
+	if (!result)
+	{
+		return result;
+	}
+
+	int c = (1 << 3) | (1 << 5) | (1 << 8);
+	__cpuid(regs, 7);
+	result = (regs[1] & c) == c;
+
+	if (!result)
+	{
+		return result;
+	}
+
+	return result;
+}
+
+void runFirstStage()
+{
+	int times = 10;
+
+	for (int size = 128; size < 513; size *= 2)
+	{
+		float** m1 = fillMatrix(size);
+		float** m2 = fillMatrix(size);
+
+		cout << "size: " << size << endl << endl;
+
+		testFindMax(size, times);
+		testMultiplyByVector(size, times);
+
+		cout << "\nordinary multiplication: " << endl;
+		float** a = testMultiply(m1, m2, size, times);
+
+		cout << "\noptimized multiplication: " << endl;
+		float** b = testOptimizedMultiply(m1, m2, size, times);
+
+		cout << "\ntest equality: " << equals(a, b, size) << endl;
+
+		free(m1);
+		free(m2);
+
+		cout << endl << endl;
+	}
 }
 
 int _tmain(int argc, _TCHAR* argv[])
 {
-	int size = 128, times = 10; 
-	float** m1 = fillMatrix(size);
-	float** m2 = fillMatrix(size);
-	float** a = new float*[size];
-	float** b = new float*[size];
-
-	cout << "size: " << size << endl << endl;
-
-	testFindMax(size, times);
-	testMultiplyByVector(size);
-
-	cout << "\nordinary multiplication: " << endl;
-	a = testMultiply(m1, m2, size);
-
-	cout << "\noptimized multiplication: " << endl;
-	b = testOptimizedMultiply(m1, m2, size);
-	
-	cout << "test equality: " << equals(a, b, size) << endl;
-
-	float** result = (float**)calloc(size, sizeof(float*));
-	for (int k = 0; k < size; k++)
-	{
-		result[k] = (float*)calloc(size, sizeof(float));
-	}
-
-	/*free(m1);
-	free(m2);
-	free(a);
-	free(b);*/
+	runFirstStage();
+	//cout << "is AVX available: " << isAVXAvailable() << endl;
 
 	return 0;
 }
